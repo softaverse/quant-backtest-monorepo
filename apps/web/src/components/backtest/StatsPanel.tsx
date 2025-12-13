@@ -9,11 +9,19 @@ interface PortfolioStats {
   total_return: number;
 }
 
-interface StatsPanelProps {
-  stats: PortfolioStats;
+interface DateRange {
+  start_date: string;
+  end_date: string;
 }
 
-export function StatsPanel({ stats }: StatsPanelProps) {
+interface StatsPanelProps {
+  stats: PortfolioStats;
+  dateRange?: DateRange;
+  portfolioName?: string;
+  color?: string;
+}
+
+export function StatsPanel({ stats, dateRange, portfolioName, color }: StatsPanelProps) {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -57,8 +65,20 @@ export function StatsPanel({ stats }: StatsPanelProps) {
     },
   ];
 
+  const title = portfolioName ? `${portfolioName} Statistics` : "Portfolio Statistics";
+
   return (
-    <Card title="Portfolio Statistics">
+    <Card title={title}>
+      {/* 日期範圍 */}
+      {dateRange && (
+        <div className="mb-4 p-3 bg-blue-50 rounded-lg text-center">
+          <p className="text-sm text-blue-600">
+            <span className="font-medium">Backtest Period:</span>{" "}
+            {dateRange.start_date} ~ {dateRange.end_date}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {statItems.map((item) => (
           <div key={item.label} className="text-center p-3 bg-gray-50 rounded-lg">

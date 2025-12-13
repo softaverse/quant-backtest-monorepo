@@ -11,18 +11,20 @@ import {
   Legend,
 } from "recharts";
 
-interface EquityCurvePoint {
-  date: string;
-  value: number;
+interface PortfolioInfo {
+  name: string;
+  color: string;
 }
 
 interface EquityCurveChartProps {
-  data: EquityCurvePoint[];
+  data: Record<string, string | number>[];
+  portfolios?: PortfolioInfo[];
   height?: number;
 }
 
 export function EquityCurveChart({
   data,
+  portfolios,
   height = 400,
 }: EquityCurveChartProps) {
   const formatCurrency = (value: number) =>
@@ -32,6 +34,9 @@ export function EquityCurveChart({
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
+
+  // 如果沒有傳入 portfolios，使用默認的單一曲線模式
+  const lines = portfolios || [{ name: "value", color: "#3b82f6" }];
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -50,7 +55,7 @@ export function EquityCurveChart({
           axisLine={{ stroke: "#e5e7eb" }}
         />
         <Tooltip
-          formatter={(value: number) => [formatCurrency(value), "Portfolio Value"]}
+          formatter={(value: number, name: string) => [formatCurrency(value), name]}
           labelStyle={{ fontWeight: "bold" }}
           contentStyle={{
             borderRadius: "8px",
@@ -59,15 +64,18 @@ export function EquityCurveChart({
           }}
         />
         <Legend />
-        <Line
-          type="monotone"
-          dataKey="value"
-          name="Portfolio Value"
-          stroke="#3b82f6"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 6, fill: "#3b82f6" }}
-        />
+        {lines.map((line) => (
+          <Line
+            key={line.name}
+            type="monotone"
+            dataKey={line.name}
+            name={line.name}
+            stroke={line.color}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 6, fill: line.color }}
+          />
+        ))}
       </LineChart>
     </ResponsiveContainer>
   );

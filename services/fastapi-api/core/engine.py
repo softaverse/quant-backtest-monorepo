@@ -78,18 +78,22 @@ class BacktestEngine:
         self.price_data = price_data
 
         # 計算月度報酬率
-        monthly_returns = price_data.resample("ME").last().pct_change().dropna()
+        monthly_prices = price_data.resample("ME").last()
+        monthly_returns = monthly_prices.pct_change().fillna(0)  # 第一個月報酬率設為 0
 
         # 計算組合報酬率（加權平均）
         weights_array = np.array([self.weights[t] for t in self.tickers])
         portfolio_returns = (monthly_returns * weights_array).sum(axis=1)
 
-        # 計算淨值曲線
+        # 計算淨值曲線（從初始資金開始）
         self.portfolio_value = (1 + portfolio_returns).cumprod() * self.initial_capital
 
         # 計算統計指標
         years = len(self.portfolio_value) / 12
         final_value = self.portfolio_value.iloc[-1]
+
+        # 排除第一個月的 0 報酬率來計算波動率
+        returns_for_volatility = portfolio_returns.iloc[1:] if len(portfolio_returns) > 1 else portfolio_returns
 
         stats = {
             "initial_capital": self.initial_capital,
@@ -97,7 +101,7 @@ class BacktestEngine:
             "cagr": round(calculate_cagr(self.initial_capital, final_value, years) * 100, 2),
             "max_drawdown": round(calculate_max_drawdown(self.portfolio_value) * 100, 2),
             "annualized_volatility": round(
-                calculate_annualized_volatility(portfolio_returns) * 100, 2
+                calculate_annualized_volatility(returns_for_volatility) * 100, 2
             ),
             "total_return": round(
                 (final_value / self.initial_capital - 1) * 100, 2
@@ -110,7 +114,8 @@ class BacktestEngine:
             for date, value in self.portfolio_value.items()
         ]
 
-        # 個股統計
+        # 個股統計（排除第一個月的 0 報酬率來計算）
+        returns_for_stats = portfolio_returns.iloc[1:] if len(portfolio_returns) > 1 else portfolio_returns
         individual_stats = {}
         for ticker in self.tickers:
             ticker_returns = monthly_returns[ticker]

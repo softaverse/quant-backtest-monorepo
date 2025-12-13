@@ -8,14 +8,20 @@ interface StockStats {
 
 interface IndividualStatsTableProps {
   stats: Record<string, StockStats>;
+  portfolioName?: string;
+  color?: string;
 }
 
-export function IndividualStatsTable({ stats }: IndividualStatsTableProps) {
+export function IndividualStatsTable({ stats, portfolioName, color }: IndividualStatsTableProps) {
   const formatPercent = (value: number) =>
     `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 
+  const title = portfolioName
+    ? `${portfolioName} - Individual Stock Performance`
+    : "Individual Stock Performance";
+
   return (
-    <Card title="Individual Stock Performance">
+    <Card title={title}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

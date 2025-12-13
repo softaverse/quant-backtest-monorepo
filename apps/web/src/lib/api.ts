@@ -1,4 +1,4 @@
-import type { BacktestRequest, BacktestResponse } from "@/types";
+import type { BacktestRequest, BacktestResponse, BatchBacktestRequest, BatchBacktestResponse } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -26,6 +26,25 @@ export async function runBacktest(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || "Backtest failed");
+  }
+
+  return response.json();
+}
+
+export async function runBatchBacktest(
+  request: BatchBacktestRequest
+): Promise<BatchBacktestResponse> {
+  const response = await fetch(getApiUrl("/backtest/batch"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || "Batch backtest failed");
   }
 
   return response.json();
