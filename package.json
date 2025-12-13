@@ -1,0 +1,21 @@
+{
+  "name": "quant-backtest-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "高性能美股投資組合回測系統",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "cd services/fastapi-api && python -m uvicorn main:app --reload --port 8000",
+    "dev:all": "concurrently \"pnpm dev:web\" \"pnpm dev:api\"",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.25.0"
+}

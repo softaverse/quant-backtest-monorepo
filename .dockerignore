@@ -1,0 +1,29 @@
+# Node
+node_modules
+**/node_modules
+.pnpm-store
+
+# Next.js
+.next
+**/out
+
+# Python
+__pycache__
+**/__pycache__
+*.pyc
+.venv
+venv
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+
+# Misc
+*.md
+.env*.local
+npm-debug.log*
+.DS_Store
