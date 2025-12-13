@@ -161,3 +161,6 @@ fly launch
 
 年度再平衡:$$W_{t+1} = W_{initial} \cdot TotalValue_{t}$$
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
