@@ -2,6 +2,7 @@ fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 pandas>=2.2.0
 numpy>=2.0.0
+scipy>=1.12.0
 vectorbt>=0.26.0
 yfinance>=0.2.50
 pydantic>=2.10.0
