@@ -8,15 +8,17 @@ interface OptionsStatsPanelProps {
 }
 
 export function OptionsStatsPanel({ stats }: OptionsStatsPanelProps) {
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-    }).format(value);
+  const formatCurrency = (value: number | null | undefined) =>
+    value != null
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 0,
+        }).format(value)
+      : "N/A";
 
-  const formatPercent = (value: number) =>
-    `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  const formatPercent = (value: number | null | undefined) =>
+    value != null ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "N/A";
 
   const statItems = [
     {
@@ -33,19 +35,19 @@ export function OptionsStatsPanel({ stats }: OptionsStatsPanelProps) {
       label: "Final Value",
       value: formatCurrency(stats.final_value),
       color:
-        stats.final_value >= stats.initial_capital
+        (stats.final_value ?? 0) >= (stats.initial_capital ?? 0)
           ? "text-green-600"
           : "text-red-600",
     },
     {
       label: "Total P&L",
       value: formatCurrency(stats.total_pnl),
-      color: stats.total_pnl >= 0 ? "text-green-600" : "text-red-600",
+      color: (stats.total_pnl ?? 0) >= 0 ? "text-green-600" : "text-red-600",
     },
     {
       label: "Return",
       value: formatPercent(stats.total_return),
-      color: stats.total_return >= 0 ? "text-green-600" : "text-red-600",
+      color: (stats.total_return ?? 0) >= 0 ? "text-green-600" : "text-red-600",
     },
     {
       label: "Max Profit",

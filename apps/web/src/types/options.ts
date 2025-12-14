@@ -66,8 +66,8 @@ export interface TradeRecord {
   date: string;
   action: string;
   strategy: string;
-  strikes: number[];
-  spot_price: number;
+  strikes?: number[];
+  spot_price?: number;
   net_premium?: number;
   final_pnl?: number;
   premiums?: number[];
@@ -87,7 +87,7 @@ export interface OptionsStats {
   days_held: number;
   entry_date: string;
   exit_date: string;
-  breakeven_points: number[];
+  breakeven_points: (number | null)[];
 }
 
 export interface OptionsBacktestResponse {

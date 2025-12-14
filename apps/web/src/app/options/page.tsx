@@ -170,20 +170,20 @@ export default function OptionsPage() {
                                 {trade.strikes?.map((s) => `$${s}`).join(", ") ?? "-"}
                               </td>
                               <td className="py-2 px-3 text-right">
-                                {trade.net_premium !== undefined
+                                {trade.net_premium != null
                                   ? `$${trade.net_premium.toFixed(2)}`
                                   : "-"}
                               </td>
                               <td
                                 className={`py-2 px-3 text-right font-medium ${
-                                  trade.final_pnl !== undefined
+                                  trade.final_pnl != null
                                     ? trade.final_pnl >= 0
                                       ? "text-green-600"
                                       : "text-red-600"
                                     : ""
                                 }`}
                               >
-                                {trade.final_pnl !== undefined
+                                {trade.final_pnl != null
                                   ? `$${trade.final_pnl.toFixed(2)}`
                                   : "-"}
                               </td>
