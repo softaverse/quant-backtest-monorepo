@@ -64,6 +64,10 @@ def calculate_greeks(
             delta = -1.0 if S < K * np.exp(-r * T) else 0.0
         return Greeks(delta=delta, gamma=0, theta=0, vega=0, rho=0)
 
+    if S <= 0:
+        # Zero or negative stock price - return zero Greeks
+        return Greeks(delta=0, gamma=0, theta=0, vega=0, rho=0)
+
     sqrt_T = np.sqrt(T)
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * sqrt_T)
     d2 = d1 - sigma * sqrt_T
@@ -131,31 +135,33 @@ def calculate_greeks_vectorized(
     # Handle edge cases
     expired_mask = T <= 0
     zero_vol_mask = sigma <= 0
+    zero_price_mask = S <= 0
 
     T_safe = np.maximum(T, 1e-10)
     sigma_safe = np.where(zero_vol_mask, 0.01, sigma)
+    S_safe = np.maximum(S, 1e-9)  # Guard against division by zero
     sqrt_T = np.sqrt(T_safe)
 
-    d1 = (np.log(S / K) + (r + 0.5 * sigma_safe**2) * T_safe) / (sigma_safe * sqrt_T)
+    d1 = (np.log(S_safe / K) + (r + 0.5 * sigma_safe**2) * T_safe) / (sigma_safe * sqrt_T)
     d2 = d1 - sigma_safe * sqrt_T
 
     N_d1 = norm.cdf(d1)
     n_d1 = norm.pdf(d1)
 
-    gamma = n_d1 / (S * sigma_safe * sqrt_T)
-    vega = S * n_d1 * sqrt_T / 100
+    gamma = n_d1 / (S_safe * sigma_safe * sqrt_T)
+    vega = S_safe * n_d1 * sqrt_T / 100
 
     if option_type == "call":
         delta = N_d1
         theta = (
-            -(S * n_d1 * sigma_safe) / (2 * sqrt_T)
+            -(S_safe * n_d1 * sigma_safe) / (2 * sqrt_T)
             - r * K * np.exp(-r * T_safe) * norm.cdf(d2)
         ) / 365
         rho = K * T_safe * np.exp(-r * T_safe) * norm.cdf(d2) / 100
     else:
         delta = N_d1 - 1
         theta = (
-            -(S * n_d1 * sigma_safe) / (2 * sqrt_T)
+            -(S_safe * n_d1 * sigma_safe) / (2 * sqrt_T)
             + r * K * np.exp(-r * T_safe) * norm.cdf(-d2)
         ) / 365
         rho = -K * T_safe * np.exp(-r * T_safe) * norm.cdf(-d2) / 100
@@ -169,6 +175,13 @@ def calculate_greeks_vectorized(
     # Handle zero volatility
     gamma = np.where(zero_vol_mask, 0, gamma)
     vega = np.where(zero_vol_mask, 0, vega)
+
+    # Handle zero or negative stock price
+    delta = np.where(zero_price_mask, 0, delta)
+    gamma = np.where(zero_price_mask, 0, gamma)
+    theta = np.where(zero_price_mask, 0, theta)
+    vega = np.where(zero_price_mask, 0, vega)
+    rho = np.where(zero_price_mask, 0, rho)
 
     return {
         "delta": delta,

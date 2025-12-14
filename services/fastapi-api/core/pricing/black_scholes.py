@@ -63,6 +63,10 @@ def black_scholes_price(
             intrinsic = max(K * np.exp(-r * T) - S, 0)
         return OptionPrice(price=intrinsic, intrinsic_value=intrinsic, time_value=0)
 
+    if S <= 0 or K <= 0:
+        # Invalid price - return zero
+        return OptionPrice(price=0, intrinsic_value=0, time_value=0)
+
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
 
@@ -115,19 +119,23 @@ def black_scholes_vectorized(
     # Handle zero volatility
     zero_vol_mask = sigma <= 0
 
+    # Handle zero or negative prices
+    zero_price_mask = S <= 0
+
     # Safe division for non-expired, non-zero-vol options
     T_safe = np.where(expired_mask | zero_vol_mask, 1, T)
     sigma_safe = np.where(zero_vol_mask, 1, sigma)
+    S_safe = np.maximum(S, 1e-9)  # Guard against division by zero in log
     sqrt_T = np.sqrt(T_safe)
 
-    d1 = (np.log(S / K) + (r + 0.5 * sigma_safe**2) * T_safe) / (sigma_safe * sqrt_T)
+    d1 = (np.log(S_safe / K) + (r + 0.5 * sigma_safe**2) * T_safe) / (sigma_safe * sqrt_T)
     d2 = d1 - sigma_safe * sqrt_T
 
     if option_type == "call":
-        prices = S * norm.cdf(d1) - K * np.exp(-r * T_safe) * norm.cdf(d2)
+        prices = S_safe * norm.cdf(d1) - K * np.exp(-r * T_safe) * norm.cdf(d2)
         expired_prices = np.maximum(S - K, 0)
     else:
-        prices = K * np.exp(-r * T_safe) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        prices = K * np.exp(-r * T_safe) * norm.cdf(-d2) - S_safe * norm.cdf(-d1)
         expired_prices = np.maximum(K - S, 0)
 
     # Apply expired values
@@ -139,5 +147,8 @@ def black_scholes_vectorized(
     else:
         zero_vol_prices = np.maximum(K * np.exp(-r * T) - S, 0)
     prices = np.where(zero_vol_mask & ~expired_mask, zero_vol_prices, prices)
+
+    # Handle zero or negative stock prices
+    prices = np.where(zero_price_mask, 0, prices)
 
     return np.maximum(prices, 0)
