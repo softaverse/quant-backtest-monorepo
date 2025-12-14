@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import backtest
+from routers import backtest, options
 
 app = FastAPI(
     title="QuantiPy API",
-    description="高性能美股投資組合回測系統 API",
-    version="1.0.0",
+    description="高性能美股投資組合回測系統 API（含選擇權回測）",
+    version="1.1.0",
 )
 
 # CORS 設定
@@ -20,6 +20,7 @@ app.add_middleware(
 
 # 註冊路由
 app.include_router(backtest.router, prefix="/api/v1", tags=["backtest"])
+app.include_router(options.router, prefix="/api/v1", tags=["options"])
 
 
 @app.get("/")
