@@ -40,7 +40,7 @@ const PORTFOLIO_COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
 
 const createDefaultPortfolio = (index: number): Portfolio => ({
   name: `Portfolio ${index + 1}`,
-  tickers: [{ ticker: "", weight: 1 }],
+  tickers: [{ ticker: "", weight: 100 }],
 });
 
 export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
@@ -48,9 +48,9 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
     {
       name: "Portfolio 1",
       tickers: [
-        { ticker: "AAPL", weight: 0.4 },
-        { ticker: "GOOGL", weight: 0.3 },
-        { ticker: "MSFT", weight: 0.3 },
+        { ticker: "AAPL", weight: 40 },
+        { ticker: "GOOGL", weight: 30 },
+        { ticker: "MSFT", weight: 30 },
       ],
     },
   ]);
@@ -106,12 +106,59 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
     setPortfolios(updated);
   };
 
+  // 自動平衡比例功能
+  const balanceWeights = (portfolioIndex: number, mode: "equal" | "fill" | "proportional") => {
+    const updated = [...portfolios];
+    const tickers = updated[portfolioIndex].tickers;
+    const count = tickers.length;
+
+    if (count === 0) return;
+
+    if (mode === "equal") {
+      // 全部平均分配
+      const equalWeight = 100 / count;
+      tickers.forEach((t) => (t.weight = Math.round(equalWeight * 10) / 10));
+      // 修正最後一個以確保總和為 100
+      const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
+      tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+    } else if (mode === "fill") {
+      // 補齊剩下的比例（平均分配給所有股票）
+      const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
+      const remaining = 100 - currentTotal;
+      if (remaining > 0) {
+        const addEach = remaining / count;
+        tickers.forEach((t) => (t.weight = Math.round((t.weight + addEach) * 10) / 10));
+        // 修正最後一個以確保總和為 100
+        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
+        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+      }
+    } else if (mode === "proportional") {
+      // 根據現有比例分配補完剩下的比例
+      const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
+      if (currentTotal > 0 && currentTotal < 100) {
+        const scale = 100 / currentTotal;
+        tickers.forEach((t) => (t.weight = Math.round(t.weight * scale * 10) / 10));
+        // 修正最後一個以確保總和為 100
+        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
+        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+      } else if (currentTotal === 0) {
+        // 如果全部是 0，則平均分配
+        const equalWeight = 100 / count;
+        tickers.forEach((t) => (t.weight = Math.round(equalWeight * 10) / 10));
+        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
+        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+      }
+    }
+
+    setPortfolios(updated);
+  };
+
   // 驗證
   const getPortfolioWeight = (portfolio: Portfolio) =>
     portfolio.tickers.reduce((sum, t) => sum + t.weight, 0);
 
   const isValidPortfolio = (portfolio: Portfolio) =>
-    Math.abs(getPortfolioWeight(portfolio) - 1) < 0.01 &&
+    Math.abs(getPortfolioWeight(portfolio) - 100) < 1 &&
     portfolio.tickers.every((t) => t.ticker.trim() !== "");
 
   const allValid = portfolios.every(isValidPortfolio);
@@ -123,12 +170,55 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
     const startDate = `${startYear}-01-01`;
     const endDate = getTodayDate();
 
-    onSubmit({ portfolios, startDate, endDate, initialCapital });
+    // 轉換權重從 0-100 到 0-1 給後端
+    const normalizedPortfolios = portfolios.map((p) => ({
+      ...p,
+      tickers: p.tickers.map((t) => ({
+        ...t,
+        weight: t.weight / 100,
+      })),
+    }));
+
+    onSubmit({ portfolios: normalizedPortfolios, startDate, endDate, initialCapital });
   };
 
   return (
     <Card title="Backtest Configuration">
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Backtest Settings */}
+        <div className="space-y-4">
+          {/* Start Year */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Backtest Start Year
+            </label>
+            <select
+              value={startYear}
+              onChange={(e) => setStartYear(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              End date: Latest trading day (today)
+            </p>
+          </div>
+
+          {/* Initial Capital */}
+          <Input
+            label="Initial Capital ($)"
+            type="number"
+            min="1000"
+            step="1000"
+            value={initialCapital}
+            onChange={(e) => setInitialCapital(Number(e.target.value))}
+          />
+        </div>
+
         {/* Portfolios */}
         {portfolios.map((portfolio, pIndex) => {
           const totalWeight = getPortfolioWeight(portfolio);
@@ -141,87 +231,131 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
               style={{ borderColor: PORTFOLIO_COLORS[pIndex] }}
             >
               {/* Portfolio Header */}
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: PORTFOLIO_COLORS[pIndex] }}
-                  />
-                  <Input
-                    value={portfolio.name}
-                    onChange={(e) => updatePortfolioName(pIndex, e.target.value)}
-                    className="font-medium w-32"
-                  />
-                </div>
-                <div className="flex gap-2">
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-3 h-3 rounded-full shrink-0"
+                  style={{ backgroundColor: PORTFOLIO_COLORS[pIndex] }}
+                />
+                <Input
+                  value={portfolio.name}
+                  onChange={(e) => updatePortfolioName(pIndex, e.target.value)}
+                  className="font-medium flex-1"
+                />
+                {portfolios.length > 1 && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTicker(pIndex)}
-                    disabled={portfolio.tickers.length >= 50}
+                    onClick={() => removePortfolio(pIndex)}
                   >
-                    + Stock
+                    Remove
                   </Button>
-                  {portfolios.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removePortfolio(pIndex)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
 
-              {/* Tickers */}
-              <div className="space-y-2">
+              {/* Tickers - 由上往下排版 */}
+              <div className="space-y-3">
                 {portfolio.tickers.map((item, tIndex) => (
-                  <div key={tIndex} className="flex gap-2 items-center">
-                    <Input
-                      placeholder="Ticker"
-                      value={item.ticker}
-                      onChange={(e) =>
-                        updateTicker(pIndex, tIndex, "ticker", e.target.value)
-                      }
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="1"
-                      placeholder="Weight"
-                      value={item.weight}
-                      onChange={(e) =>
-                        updateTicker(pIndex, tIndex, "weight", e.target.value)
-                      }
-                      className="w-20"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeTicker(pIndex, tIndex)}
-                      disabled={portfolio.tickers.length <= 1}
-                    >
-                      X
-                    </Button>
+                  <div key={tIndex} className="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Ticker (e.g. AAPL)"
+                        value={item.ticker}
+                        onChange={(e) =>
+                          updateTicker(pIndex, tIndex, "ticker", e.target.value)
+                        }
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeTicker(pIndex, tIndex)}
+                        disabled={portfolio.tickers.length <= 1}
+                      >
+                        X
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-600 w-16">Weight:</label>
+                      <div className="relative flex-1">
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          max="100"
+                          placeholder="%"
+                          value={item.weight}
+                          onChange={(e) =>
+                            updateTicker(pIndex, tIndex, "weight", e.target.value)
+                          }
+                          className="w-full pr-8"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                          %
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {/* Weight Status */}
-              <p
-                className={`mt-2 text-sm ${
-                  isValid ? "text-green-600" : "text-red-600"
-                }`}
+              {/* Add Stock Button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addTicker(pIndex)}
+                disabled={portfolio.tickers.length >= 50}
+                className="w-full mt-3"
               >
-                Weight: {(totalWeight * 100).toFixed(1)}%
-                {!isValid && " (must equal 100%)"}
-              </p>
+                + Add Stock
+              </Button>
+
+              {/* Weight Status & Auto Balance */}
+              <div className="mt-3 space-y-2">
+                <p
+                  className={`text-sm ${
+                    isValid ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  Total Weight: {totalWeight.toFixed(1)}%
+                  {!isValid && " (must equal 100%)"}
+                </p>
+
+                {/* Auto Balance Buttons */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => balanceWeights(pIndex, "equal")}
+                    title="平均分配所有股票"
+                  >
+                    平均
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => balanceWeights(pIndex, "fill")}
+                    title="將剩餘比例平均分配給所有股票"
+                    disabled={totalWeight >= 100}
+                  >
+                    補齊
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => balanceWeights(pIndex, "proportional")}
+                    title="按現有比例放大至 100%"
+                    disabled={totalWeight === 0 || totalWeight >= 100}
+                  >
+                    等比放大
+                  </Button>
+                </div>
+              </div>
             </div>
           );
         })}
@@ -238,37 +372,6 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
             + Add Portfolio ({portfolios.length}/3)
           </Button>
         )}
-
-        {/* Start Year */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Backtest Start Year
-          </label>
-          <select
-            value={startYear}
-            onChange={(e) => setStartYear(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs text-gray-500">
-            End date: Latest trading day (today)
-          </p>
-        </div>
-
-        {/* Initial Capital */}
-        <Input
-          label="Initial Capital ($)"
-          type="number"
-          min="1000"
-          step="1000"
-          value={initialCapital}
-          onChange={(e) => setInitialCapital(Number(e.target.value))}
-        />
 
         {/* Submit Button */}
         <Button
