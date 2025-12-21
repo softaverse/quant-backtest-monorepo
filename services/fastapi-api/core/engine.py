@@ -40,6 +40,85 @@ def calculate_annualized_volatility(
     return returns.std() * np.sqrt(periods_per_year)
 
 
+def calculate_sharpe_ratio(
+    returns: pd.Series, risk_free_rate: float = 0.02, periods_per_year: int = 12
+) -> float:
+    """
+    計算夏普比率 (Sharpe Ratio)
+    Sharpe = (Portfolio Return - Risk Free Rate) / Standard Deviation
+    """
+    if returns.empty or returns.std() == 0:
+        return 0.0
+    annualized_return = returns.mean() * periods_per_year
+    annualized_std = returns.std() * np.sqrt(periods_per_year)
+    return (annualized_return - risk_free_rate) / annualized_std
+
+
+def calculate_sortino_ratio(
+    returns: pd.Series, risk_free_rate: float = 0.02, periods_per_year: int = 12
+) -> float:
+    """
+    計算索提諾比率 (Sortino Ratio)
+    Sortino = (Portfolio Return - Risk Free Rate) / Downside Deviation
+    只考慮負報酬的標準差
+    """
+    if returns.empty:
+        return 0.0
+    negative_returns = returns[returns < 0]
+    if negative_returns.empty or negative_returns.std() == 0:
+        return 0.0
+    annualized_return = returns.mean() * periods_per_year
+    downside_std = negative_returns.std() * np.sqrt(periods_per_year)
+    return (annualized_return - risk_free_rate) / downside_std
+
+
+def calculate_yearly_returns(equity_curve: pd.Series) -> pd.Series:
+    """
+    計算年度報酬率
+    """
+    # 按年重新採樣，取每年最後一個值
+    yearly_values = equity_curve.resample("YE").last()
+    # 計算年度報酬率
+    yearly_returns = yearly_values.pct_change().dropna()
+    return yearly_returns
+
+
+def calculate_best_year(equity_curve: pd.Series) -> float:
+    """
+    計算最佳年度報酬率
+    """
+    yearly_returns = calculate_yearly_returns(equity_curve)
+    if yearly_returns.empty:
+        return 0.0
+    return yearly_returns.max()
+
+
+def calculate_worst_year(equity_curve: pd.Series) -> float:
+    """
+    計算最差年度報酬率
+    """
+    yearly_returns = calculate_yearly_returns(equity_curve)
+    if yearly_returns.empty:
+        return 0.0
+    return yearly_returns.min()
+
+
+def calculate_benchmark_correlation(
+    portfolio_returns: pd.Series, benchmark_returns: pd.Series
+) -> float:
+    """
+    計算投資組合與基準指數的相關係數
+    """
+    if portfolio_returns.empty or benchmark_returns.empty:
+        return 0.0
+    # 確保兩者的索引對齊
+    aligned = pd.concat([portfolio_returns, benchmark_returns], axis=1).dropna()
+    if len(aligned) < 2:
+        return 0.0
+    correlation = aligned.iloc[:, 0].corr(aligned.iloc[:, 1])
+    return correlation if not pd.isna(correlation) else 0.0
+
+
 def rebalance_portfolio(
     portfolio_value: float, weights: dict[str, float]
 ) -> dict[str, float]:
@@ -106,6 +185,10 @@ class BacktestEngine:
             "total_return": round(
                 (final_value / self.initial_capital - 1) * 100, 2
             ),
+            "sharpe_ratio": round(calculate_sharpe_ratio(returns_for_volatility), 2),
+            "sortino_ratio": round(calculate_sortino_ratio(returns_for_volatility), 2),
+            "best_year": round(calculate_best_year(self.portfolio_value) * 100, 2),
+            "worst_year": round(calculate_worst_year(self.portfolio_value) * 100, 2),
         }
 
         # 淨值曲線數據
@@ -139,4 +222,5 @@ class BacktestEngine:
             "stats": stats,
             "equity_curve": equity_curve,
             "individual_stats": individual_stats,
+            "portfolio_returns": portfolio_returns,  # For correlation calculation
         }

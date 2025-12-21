@@ -5,7 +5,14 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from core.engine import BacktestEngine
+from core.engine import (
+    BacktestEngine,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
+    calculate_best_year,
+    calculate_worst_year,
+    calculate_benchmark_correlation,
+)
 from data.fetcher import fetch_stock_data, validate_tickers
 
 router = APIRouter()
@@ -117,6 +124,11 @@ class PortfolioStats(BaseModel):
     max_drawdown: float
     annualized_volatility: float
     total_return: float
+    sharpe_ratio: float
+    sortino_ratio: float
+    best_year: float
+    worst_year: float
+    benchmark_correlation: float
 
 
 class DateRange(BaseModel):
@@ -135,6 +147,11 @@ class BenchmarkStats(BaseModel):
     cagr: float
     max_drawdown: float
     annualized_volatility: float
+    sharpe_ratio: float
+    sortino_ratio: float
+    best_year: float
+    worst_year: float
+    benchmark_correlation: float  # Always 1.00 for benchmark itself
 
 
 class BacktestResponse(BaseModel):
@@ -211,10 +228,10 @@ async def run_backtest(request: BacktestRequest):
             detail="找不到指定時間範圍的股價數據",
         )
 
-    # 獲取 S&P 500 (SPY) 基準數據
+    # 獲取 S&P 500 (VFINX) 基準數據
     try:
         benchmark_data, _, _ = fetch_stock_data(
-            tickers=["SPY"],
+            tickers=["VFINX"],
             start_date=request.start_date,
             end_date=request.end_date,
         )
@@ -242,7 +259,7 @@ async def run_backtest(request: BacktestRequest):
     # 計算基準指數表現（使用月度數據以匹配組合）
     if benchmark_data is not None and not benchmark_data.empty:
         # 轉換為月度數據（與組合計算方式一致）
-        benchmark_monthly = benchmark_data["SPY"].resample("ME").last().dropna()
+        benchmark_monthly = benchmark_data["VFINX"].resample("ME").last().dropna()
 
         if not benchmark_monthly.empty:
             # 計算月度報酬率（第一個月設為 0，與組合一致）
@@ -280,7 +297,18 @@ async def run_backtest(request: BacktestRequest):
                 "cagr": round(cagr, 2),
                 "max_drawdown": round(max_drawdown, 2),
                 "annualized_volatility": round(annualized_volatility, 2),
+                "sharpe_ratio": round(calculate_sharpe_ratio(returns_for_volatility), 2),
+                "sortino_ratio": round(calculate_sortino_ratio(returns_for_volatility), 2),
+                "best_year": round(calculate_best_year(benchmark_values) * 100, 2),
+                "worst_year": round(calculate_worst_year(benchmark_values) * 100, 2),
+                "benchmark_correlation": 1.0,  # Benchmark correlation with itself
             }
+
+            # 計算組合與基準的相關係數
+            benchmark_correlation = calculate_benchmark_correlation(
+                result["portfolio_returns"], benchmark_returns
+            )
+            result["stats"]["benchmark_correlation"] = round(benchmark_correlation, 2)
         else:
             result["benchmark_curve"] = []
             result["benchmark_stats"] = {
@@ -290,7 +318,13 @@ async def run_backtest(request: BacktestRequest):
                 "cagr": 0,
                 "max_drawdown": 0,
                 "annualized_volatility": 0,
+                "sharpe_ratio": 0,
+                "sortino_ratio": 0,
+                "best_year": 0,
+                "worst_year": 0,
+                "benchmark_correlation": 1.0,
             }
+            result["stats"]["benchmark_correlation"] = 0
     else:
         result["benchmark_curve"] = []
         result["benchmark_stats"] = {
@@ -300,7 +334,16 @@ async def run_backtest(request: BacktestRequest):
             "cagr": 0,
             "max_drawdown": 0,
             "annualized_volatility": 0,
+            "sharpe_ratio": 0,
+            "sortino_ratio": 0,
+            "best_year": 0,
+            "worst_year": 0,
+            "benchmark_correlation": 1.0,
         }
+        result["stats"]["benchmark_correlation"] = 0
+
+    # Remove portfolio_returns from result (internal use only)
+    del result["portfolio_returns"]
 
     return result
 
@@ -334,7 +377,7 @@ async def run_batch_backtest(request: BatchBacktestRequest):
     all_tickers = set()
     for portfolio in request.portfolios:
         all_tickers.update(portfolio.tickers)
-    all_tickers.add("SPY")  # 加入 benchmark
+    all_tickers.add("VFINX")  # 加入 benchmark
     all_tickers = list(all_tickers)
 
     # 一次獲取所有股價數據
@@ -358,6 +401,9 @@ async def run_batch_backtest(request: BatchBacktestRequest):
 
     # 執行每個組合的回測
     portfolio_results = []
+    # 保存每個組合的報酬率用於計算相關係數
+    portfolio_returns_list = []
+
     for portfolio in request.portfolios:
         # 提取該組合需要的股價數據
         portfolio_price_data = price_data[portfolio.tickers].copy()
@@ -372,6 +418,7 @@ async def run_batch_backtest(request: BatchBacktestRequest):
         )
 
         result = engine.run(portfolio_price_data)
+        portfolio_returns_list.append(result["portfolio_returns"])
         portfolio_results.append({
             "name": portfolio.name,
             "stats": result["stats"],
@@ -388,10 +435,16 @@ async def run_batch_backtest(request: BatchBacktestRequest):
         "cagr": 0,
         "max_drawdown": 0,
         "annualized_volatility": 0,
+        "sharpe_ratio": 0,
+        "sortino_ratio": 0,
+        "best_year": 0,
+        "worst_year": 0,
+        "benchmark_correlation": 1.0,
     }
+    benchmark_returns = None
 
-    if "SPY" in price_data.columns:
-        benchmark_monthly = price_data["SPY"].resample("ME").last().dropna()
+    if "VFINX" in price_data.columns:
+        benchmark_monthly = price_data["VFINX"].resample("ME").last().dropna()
 
         if not benchmark_monthly.empty:
             benchmark_returns = benchmark_monthly.pct_change().fillna(0)
@@ -422,7 +475,22 @@ async def run_batch_backtest(request: BatchBacktestRequest):
                 "cagr": round(cagr, 2),
                 "max_drawdown": round(max_drawdown, 2),
                 "annualized_volatility": round(annualized_volatility, 2),
+                "sharpe_ratio": round(calculate_sharpe_ratio(returns_for_volatility), 2),
+                "sortino_ratio": round(calculate_sortino_ratio(returns_for_volatility), 2),
+                "best_year": round(calculate_best_year(benchmark_values) * 100, 2),
+                "worst_year": round(calculate_worst_year(benchmark_values) * 100, 2),
+                "benchmark_correlation": 1.0,
             }
+
+    # 計算每個組合與基準的相關係數
+    for i, portfolio_result in enumerate(portfolio_results):
+        if benchmark_returns is not None:
+            correlation = calculate_benchmark_correlation(
+                portfolio_returns_list[i], benchmark_returns
+            )
+            portfolio_result["stats"]["benchmark_correlation"] = round(correlation, 2)
+        else:
+            portfolio_result["stats"]["benchmark_correlation"] = 0
 
     return {
         "portfolios": portfolio_results,
