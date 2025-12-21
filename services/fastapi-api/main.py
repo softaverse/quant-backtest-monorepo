@@ -5,7 +5,7 @@ from routers import backtest, options
 
 app = FastAPI(
     title="Backtest Portfolio API",
-    description="Backtest U.S. stock portfolios and options strategies to analyze long-term performance with historical data.",
+    description="Backtest U.S. stock portfolios and analyze long-term performance with historical data.",
     version="1.1.0",
 )
 
