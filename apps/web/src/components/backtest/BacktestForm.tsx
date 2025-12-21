@@ -114,39 +114,41 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
 
     if (count === 0) return;
 
-    if (mode === "equal") {
-      // 全部平均分配
-      const equalWeight = 100 / count;
-      tickers.forEach((t) => (t.weight = Math.round(equalWeight * 10) / 10));
+    // 四捨五入到小數點第一位
+    const round1 = (n: number) => Math.round(n * 10) / 10;
+
+    const distributeEqually = () => {
+      const equalWeight = round1(100 / count);
+      tickers.forEach((t) => (t.weight = equalWeight));
       // 修正最後一個以確保總和為 100
       const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-      tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+      tickers[count - 1].weight = round1(100 - sum);
+    };
+
+    if (mode === "equal") {
+      distributeEqually();
     } else if (mode === "fill") {
-      // 補齊剩下的比例（平均分配給所有股票）
       const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
       const remaining = 100 - currentTotal;
       if (remaining > 0) {
-        const addEach = remaining / count;
-        tickers.forEach((t) => (t.weight = Math.round((t.weight + addEach) * 10) / 10));
+        const addEach = round1(remaining / count);
+        tickers.forEach((t) => (t.weight = round1(t.weight + addEach)));
         // 修正最後一個以確保總和為 100
         const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+        tickers[count - 1].weight = round1(100 - sum);
       }
     } else if (mode === "proportional") {
-      // 根據現有比例分配補完剩下的比例
       const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
       if (currentTotal > 0 && currentTotal < 100) {
-        const scale = 100 / currentTotal;
-        tickers.forEach((t) => (t.weight = Math.round(t.weight * scale * 10) / 10));
-        // 修正最後一個以確保總和為 100
-        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+        let runningTotal = 0;
+        for (let i = 0; i < count - 1; i++) {
+          const newWeight = round1((tickers[i].weight / currentTotal) * 100);
+          tickers[i].weight = newWeight;
+          runningTotal += newWeight;
+        }
+        tickers[count - 1].weight = round1(100 - runningTotal);
       } else if (currentTotal === 0) {
-        // 如果全部是 0，則平均分配
-        const equalWeight = 100 / count;
-        tickers.forEach((t) => (t.weight = Math.round(equalWeight * 10) / 10));
-        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-        tickers[count - 1].weight = Math.round((100 - sum) * 10) / 10;
+        distributeEqually();
       }
     }
 
@@ -158,7 +160,7 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
     portfolio.tickers.reduce((sum, t) => sum + t.weight, 0);
 
   const isValidPortfolio = (portfolio: Portfolio) =>
-    Math.abs(getPortfolioWeight(portfolio) - 100) < 1 &&
+    Math.abs(getPortfolioWeight(portfolio) - 100) < 0.01 &&
     portfolio.tickers.every((t) => t.ticker.trim() !== "");
 
   const allValid = portfolios.every(isValidPortfolio);
@@ -281,7 +283,7 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
                       <div className="relative flex-1">
                         <Input
                           type="number"
-                          step="1"
+                          step="0.1"
                           min="0"
                           max="100"
                           placeholder="%"
