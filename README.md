@@ -1,4 +1,4 @@
-# 📈 QuantiPy: 高性能美股投資組合回測系統
+# 📈 Backtest Portfolio
 
 這是一個專為複雜金融策略設計的美股投資組合回測平台。前端採用 **Next.js** 提供流暢的互動體驗，後端則利用 **FastAPI** 結合 Python 強大的科學計算生態（Pandas, VectorBT），支援機器學習模型整合與大規模矩陣運算。
 

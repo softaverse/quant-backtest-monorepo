@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QuantiPy - Portfolio Backtest System",
-  description: "High-Performance US Stock Portfolio Backtest System",
+  title: "Backtest Portfolio",
+  description: "Backtest U.S. stock portfolios and analyze long-term performance with historical data.",
 };
 
 export default function RootLayout({

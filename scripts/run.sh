@@ -2,14 +2,14 @@
 set -e
 
 # ============================================
-# QuantiPy 快速啟動腳本
+# Backtest Portfolio 快速啟動腳本
 # ============================================
 
 ACTION="${1:-up}"
 
 case $ACTION in
   up|start)
-    echo "🚀 啟動 QuantiPy..."
+    echo "🚀 啟動 Backtest Portfolio..."
     docker compose up -d --build
     echo ""
     echo "✅ 啟動完成！"
@@ -17,12 +17,12 @@ case $ACTION in
     echo "   API 文件：http://localhost:1111/docs"
     ;;
   down|stop)
-    echo "🛑 停止 QuantiPy..."
+    echo "🛑 停止 Backtest Portfolio..."
     docker compose down
     echo "✅ 已停止"
     ;;
   restart)
-    echo "🔄 重啟 QuantiPy..."
+    echo "🔄 重啟 Backtest Portfolio..."
     docker compose down
     docker compose up -d --build
     echo "✅ 重啟完成！"

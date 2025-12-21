@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import backtest, options
 
 app = FastAPI(
-    title="QuantiPy API",
-    description="高性能美股投資組合回測系統 API（含選擇權回測）",
+    title="Backtest Portfolio API",
+    description="Backtest U.S. stock portfolios and analyze long-term performance with historical data.",
     version="1.1.0",
 )
 
@@ -25,7 +25,7 @@ app.include_router(options.router, prefix="/api/v1", tags=["options"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to QuantiPy API", "docs": "/docs"}
+    return {"message": "Welcome to Backtest Portfolio API", "docs": "/docs"}
 
 
 @app.get("/health")
