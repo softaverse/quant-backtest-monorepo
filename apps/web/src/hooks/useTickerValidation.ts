@@ -28,7 +28,7 @@ interface UseTickerValidationReturn {
  */
 export function useTickerValidation(): UseTickerValidationReturn {
   const [validationState, setValidationState] = useState<ValidationState>({});
-  const pendingValidations = useRef<Set<string>>(new Set());
+  const pendingPromises = useRef<Map<string, Promise<boolean>>>(new Map());
   const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const getStatus = useCallback(
@@ -56,9 +56,9 @@ export function useTickerValidation(): UseTickerValidationReturn {
         return true;
       }
 
-      // 如果已經在驗證中，返回當前狀態
-      if (pendingValidations.current.has(normalizedTicker)) {
-        return validationState[normalizedTicker] === "valid";
+      // Return existing promise if validation is already in-flight
+      if (pendingPromises.current.has(normalizedTicker)) {
+        return pendingPromises.current.get(normalizedTicker)!;
       }
 
       // 清除之前的 debounce timer
@@ -72,10 +72,9 @@ export function useTickerValidation(): UseTickerValidationReturn {
         ...prev,
         [normalizedTicker]: "pending",
       }));
-      pendingValidations.current.add(normalizedTicker);
 
-      // Debounce 300ms 後呼叫 API
-      return new Promise((resolve) => {
+      // Create and store a new promise for the debounced API call
+      const promise = new Promise<boolean>((resolve) => {
         const timer = setTimeout(async () => {
           try {
             const results = await validateTickers([normalizedTicker]);
@@ -95,15 +94,19 @@ export function useTickerValidation(): UseTickerValidationReturn {
             }));
             resolve(false);
           } finally {
-            pendingValidations.current.delete(normalizedTicker);
+            // Clean up after the promise is settled
+            pendingPromises.current.delete(normalizedTicker);
             debounceTimers.current.delete(normalizedTicker);
           }
         }, 300);
 
         debounceTimers.current.set(normalizedTicker, timer);
       });
+
+      pendingPromises.current.set(normalizedTicker, promise);
+      return promise;
     },
-    [validationState]
+    []
   );
 
   const validateMultipleTickers = useCallback(
@@ -199,7 +202,7 @@ export function useTickerValidation(): UseTickerValidationReturn {
     }
 
     // 從 pending 中移除
-    pendingValidations.current.delete(normalizedTicker);
+    pendingPromises.current.delete(normalizedTicker);
 
     // 清除狀態
     setValidationState((prev) => {
