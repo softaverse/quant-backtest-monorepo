@@ -125,6 +125,21 @@ docker compose build api
 docker compose build web
 ```
 
+### 快速腳本 (推薦)
+
+使用 `./scripts/run.sh` 簡化 Docker 操作：
+
+```bash
+./scripts/run.sh up        # 啟動服務 (預設)
+./scripts/run.sh down      # 停止服務
+./scripts/run.sh restart   # 重啟服務
+./scripts/run.sh logs      # 查看日誌
+./scripts/run.sh status    # 查看狀態
+./scripts/run.sh clean     # 清理 Docker 資源
+```
+
+啟動後訪問：http://localhost:1111
+
 ---
 
 ## ☁️ 雲端部署
