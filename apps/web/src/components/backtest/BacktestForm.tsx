@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Card, Input } from "@/components/ui";
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui";
 
-interface TickerWeight {
+interface Asset {
   ticker: string;
-  weight: number;
+  weights: number[]; // weights[0] = Portfolio #1, weights[1] = Portfolio #2, etc.
 }
 
 interface Portfolio {
   name: string;
-  tickers: TickerWeight[];
+  tickers: { ticker: string; weight: number }[];
 }
 
 interface BacktestFormData {
@@ -22,182 +22,287 @@ interface BacktestFormData {
 
 interface BacktestFormProps {
   onSubmit: (data: BacktestFormData) => void;
+  onCancel?: () => void;
   loading?: boolean;
 }
 
-// 生成年份選項（從 2000 年到今年）
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: currentYear - 1999 }, (_, i) => currentYear - i);
+const DEFAULT_VISIBLE_ASSETS = 10;
+const MAX_ASSETS = 50;
 
-// 取得今天日期（格式：YYYY-MM-DD）
 const getTodayDate = () => {
   const today = new Date();
   return today.toISOString().split("T")[0];
 };
 
-// 組合顏色
-const PORTFOLIO_COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: currentYear - 1999 }, (_, i) => currentYear - i);
 
-const createDefaultPortfolio = (index: number): Portfolio => ({
-  name: `Portfolio ${index + 1}`,
-  tickers: [{ ticker: "", weight: 100 }],
-});
+// Search icon component
+const SearchIcon = () => (
+  <svg
+    className="w-5 h-5 text-gray-400"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    />
+  </svg>
+);
 
-export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([
-    {
-      name: "Portfolio 1",
-      tickers: [
-        { ticker: "AAPL", weight: 40 },
-        { ticker: "GOOGL", weight: 30 },
-        { ticker: "MSFT", weight: 30 },
-      ],
-    },
+// Trash icon component
+const TrashIcon = () => (
+  <svg
+    className="w-5 h-5 text-gray-500 cursor-pointer hover:text-red-500"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+    />
+  </svg>
+);
+
+// Settings/Gear icon component
+const SettingsIcon = () => (
+  <svg
+    className="w-4 h-4 text-gray-500"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+    />
+  </svg>
+);
+
+// Dropdown arrow icon
+const ChevronDownIcon = () => (
+  <svg
+    className="w-3 h-3 text-gray-500"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M19 9l-7 7-7-7"
+    />
+  </svg>
+);
+
+const PORTFOLIO_COUNT = 3;
+
+export function BacktestForm({ onSubmit, onCancel, loading = false }: BacktestFormProps) {
+  const portfolioCount = PORTFOLIO_COUNT;
+  const [assets, setAssets] = useState<Asset[]>([
+    { ticker: "VTSMX", weights: [40, 0, 0] },
+    { ticker: "VGTSX", weights: [20, 0, 0] },
+    { ticker: "VGSIX", weights: [10, 0, 0] },
+    { ticker: "VBMFX", weights: [30, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
+    { ticker: "", weights: [0, 0, 0] },
   ]);
+  const [visibleAssets, setVisibleAssets] = useState(DEFAULT_VISIBLE_ASSETS);
   const [startYear, setStartYear] = useState(2020);
   const [initialCapital, setInitialCapital] = useState(100000);
+  const [openDropdown, setOpenDropdown] = useState<number | null>(null);
+  const dropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // 組合操作
-  const addPortfolio = () => {
-    if (portfolios.length >= 3) return;
-    setPortfolios([...portfolios, createDefaultPortfolio(portfolios.length)]);
-  };
-
-  const removePortfolio = (portfolioIndex: number) => {
-    if (portfolios.length <= 1) return;
-    setPortfolios(portfolios.filter((_, i) => i !== portfolioIndex));
-  };
-
-  const updatePortfolioName = (portfolioIndex: number, name: string) => {
-    const updated = [...portfolios];
-    updated[portfolioIndex].name = name;
-    setPortfolios(updated);
-  };
-
-  // 股票操作
-  const addTicker = (portfolioIndex: number) => {
-    const updated = [...portfolios];
-    if (updated[portfolioIndex].tickers.length >= 50) return;
-    updated[portfolioIndex].tickers.push({ ticker: "", weight: 0 });
-    setPortfolios(updated);
-  };
-
-  const removeTicker = (portfolioIndex: number, tickerIndex: number) => {
-    const updated = [...portfolios];
-    if (updated[portfolioIndex].tickers.length <= 1) return;
-    updated[portfolioIndex].tickers = updated[portfolioIndex].tickers.filter(
-      (_, i) => i !== tickerIndex
-    );
-    setPortfolios(updated);
-  };
-
-  const updateTicker = (
-    portfolioIndex: number,
-    tickerIndex: number,
-    field: keyof TickerWeight,
-    value: string | number
-  ) => {
-    const updated = [...portfolios];
-    if (field === "ticker") {
-      updated[portfolioIndex].tickers[tickerIndex].ticker = (value as string).toUpperCase();
-    } else {
-      updated[portfolioIndex].tickers[tickerIndex].weight = Number(value);
-    }
-    setPortfolios(updated);
-  };
-
-  // 自動平衡比例功能
-  const balanceWeights = (portfolioIndex: number, mode: "equal" | "fill" | "proportional") => {
-    const updated = [...portfolios];
-    const tickers = updated[portfolioIndex].tickers;
-    const count = tickers.length;
-
-    if (count === 0) return;
-
-    // 四捨五入到小數點第一位
-    const round1 = (n: number) => Math.round(n * 10) / 10;
-
-    const distributeEqually = () => {
-      const equalWeight = round1(100 / count);
-      tickers.forEach((t) => (t.weight = equalWeight));
-      // 修正最後一個以確保總和為 100
-      const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-      tickers[count - 1].weight = round1(100 - sum);
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown !== null) {
+        const ref = dropdownRefs.current[openDropdown];
+        if (ref && !ref.contains(event.target as Node)) {
+          setOpenDropdown(null);
+        }
+      }
     };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openDropdown]);
 
-    if (mode === "equal") {
-      distributeEqually();
-    } else if (mode === "fill") {
-      const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
+  const updateTicker = (assetIndex: number, value: string) => {
+    const updated = [...assets];
+    updated[assetIndex].ticker = value.toUpperCase();
+    setAssets(updated);
+  };
+
+  const updateWeight = (assetIndex: number, portfolioIndex: number, value: number) => {
+    const updated = [...assets];
+    updated[assetIndex].weights[portfolioIndex] = value;
+    setAssets(updated);
+  };
+
+  const getPortfolioTotal = (portfolioIndex: number) => {
+    return assets.reduce((sum, asset) => sum + (asset.weights[portfolioIndex] || 0), 0);
+  };
+
+  const clearAllAssets = () => {
+    setAssets(assets.map(() => ({ ticker: "", weights: [0, 0, 0] })));
+  };
+
+  const showMoreAssets = () => {
+    const newCount = Math.min(visibleAssets + 10, MAX_ASSETS);
+    if (assets.length < newCount) {
+      const newAssets = [...assets];
+      for (let i = assets.length; i < newCount; i++) {
+        newAssets.push({ ticker: "", weights: [0, 0, 0] });
+      }
+      setAssets(newAssets);
+    }
+    setVisibleAssets(newCount);
+  };
+
+  // Portfolio dropdown actions
+  const handlePortfolioAction = (portfolioIndex: number, action: string) => {
+    const updated = [...assets];
+
+    if (action === "clear") {
+      updated.forEach((asset) => {
+        asset.weights[portfolioIndex] = 0;
+      });
+    } else if (action === "equal") {
+      const assetsWithTickers = updated.filter((a) => a.ticker.trim() !== "");
+      const count = assetsWithTickers.length;
+      if (count > 0) {
+        const equalWeight = Math.floor(100 / count);
+        const remainder = 100 - equalWeight * count;
+        let remainderAdded = 0;
+        updated.forEach((asset) => {
+          if (asset.ticker.trim() !== "") {
+            asset.weights[portfolioIndex] = equalWeight + (remainderAdded < remainder ? 1 : 0);
+            remainderAdded++;
+          } else {
+            asset.weights[portfolioIndex] = 0;
+          }
+        });
+      }
+    } else if (action === "normalize") {
+      // Normalize weights to reach 100%
+      const currentTotal = updated.reduce(
+        (sum, asset) => sum + (asset.weights[portfolioIndex] || 0),
+        0
+      );
       const remaining = 100 - currentTotal;
       if (remaining > 0) {
-        const addEach = round1(remaining / count);
-        tickers.forEach((t) => (t.weight = round1(t.weight + addEach)));
-        // 修正最後一個以確保總和為 100
-        const sum = tickers.slice(0, -1).reduce((acc, t) => acc + t.weight, 0);
-        tickers[count - 1].weight = round1(100 - sum);
-      }
-    } else if (mode === "proportional") {
-      const currentTotal = tickers.reduce((sum, t) => sum + t.weight, 0);
-      if (currentTotal > 0 && currentTotal < 100) {
-        let runningTotal = 0;
-        for (let i = 0; i < count - 1; i++) {
-          const newWeight = round1((tickers[i].weight / currentTotal) * 100);
-          tickers[i].weight = newWeight;
-          runningTotal += newWeight;
+        // Distribute remaining weight among assets with tickers
+        const assetsWithTickers = updated.filter((a) => a.ticker.trim() !== "");
+        const count = assetsWithTickers.length;
+        if (count > 0) {
+          const addEach = Math.floor(remaining / count);
+          const extraRemainder = remaining - addEach * count;
+          let extraAdded = 0;
+          updated.forEach((asset) => {
+            if (asset.ticker.trim() !== "") {
+              asset.weights[portfolioIndex] += addEach + (extraAdded < extraRemainder ? 1 : 0);
+              extraAdded++;
+            }
+          });
         }
-        tickers[count - 1].weight = round1(100 - runningTotal);
-      } else if (currentTotal === 0) {
-        distributeEqually();
+      }
+    } else if (action.startsWith("copy-")) {
+      const sourceIndex = parseInt(action.split("-")[1], 10);
+      updated.forEach((asset) => {
+        asset.weights[portfolioIndex] = asset.weights[sourceIndex];
+      });
+    }
+
+    setAssets(updated);
+    setOpenDropdown(null);
+  };
+
+  // Convert assets to portfolio format for submission
+  const convertToPortfolios = (): Portfolio[] => {
+    const portfolios: Portfolio[] = [];
+
+    for (let pIndex = 0; pIndex < portfolioCount; pIndex++) {
+      const tickers: { ticker: string; weight: number }[] = [];
+
+      assets.forEach((asset) => {
+        if (asset.ticker.trim() !== "" && asset.weights[pIndex] > 0) {
+          tickers.push({
+            ticker: asset.ticker,
+            weight: asset.weights[pIndex] / 100, // Convert to 0-1 scale
+          });
+        }
+      });
+
+      if (tickers.length > 0) {
+        portfolios.push({
+          name: `Portfolio #${pIndex + 1}`,
+          tickers,
+        });
       }
     }
 
-    setPortfolios(updated);
+    return portfolios;
   };
-
-  // 驗證
-  const getPortfolioWeight = (portfolio: Portfolio) =>
-    portfolio.tickers.reduce((sum, t) => sum + t.weight, 0);
-
-  const isValidPortfolio = (portfolio: Portfolio) =>
-    Math.abs(getPortfolioWeight(portfolio) - 100) < 0.01 &&
-    portfolio.tickers.every((t) => t.ticker.trim() !== "");
-
-  const allValid = portfolios.every(isValidPortfolio);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!allValid) return;
+
+    const portfolios = convertToPortfolios();
+    if (portfolios.length === 0) return;
 
     const startDate = `${startYear}-01-01`;
     const endDate = getTodayDate();
 
-    // 轉換權重從 0-100 到 0-1 給後端
-    const normalizedPortfolios = portfolios.map((p) => ({
-      ...p,
-      tickers: p.tickers.map((t) => ({
-        ...t,
-        weight: t.weight / 100,
-      })),
-    }));
+    onSubmit({ portfolios, startDate, endDate, initialCapital });
+  };
 
-    onSubmit({ portfolios: normalizedPortfolios, startDate, endDate, initialCapital });
+  // Validation: at least one portfolio has valid weights (sum to 100)
+  const hasValidPortfolio = () => {
+    for (let pIndex = 0; pIndex < portfolioCount; pIndex++) {
+      const total = getPortfolioTotal(pIndex);
+      const hasAssets = assets.some(
+        (a) => a.ticker.trim() !== "" && a.weights[pIndex] > 0
+      );
+      if (hasAssets && Math.abs(total - 100) < 0.01) {
+        return true;
+      }
+    }
+    return false;
   };
 
   return (
-    <Card title="Backtest Configuration">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Backtest Settings */}
-        <div className="space-y-4">
-          {/* Start Year */}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+      {/* Backtest Settings */}
+      <div className="px-6 py-4 border-b border-gray-200">
+        <div className="flex flex-wrap gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Backtest Start Year
+              Start Year
             </label>
             <select
               value={startYear}
               onChange={(e) => setStartYear(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {years.map((year) => (
                 <option key={year} value={year}>
@@ -205,188 +310,218 @@ export function BacktestForm({ onSubmit, loading = false }: BacktestFormProps) {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500">
-              End date: Latest trading day (today)
-            </p>
           </div>
-
-          {/* Initial Capital */}
-          <Input
-            label="Initial Capital ($)"
-            type="number"
-            min="1000"
-            step="1000"
-            value={initialCapital}
-            onChange={(e) => setInitialCapital(Number(e.target.value))}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Initial Capital ($)
+            </label>
+            <input
+              type="number"
+              min="1000"
+              step="1000"
+              value={initialCapital}
+              onChange={(e) => setInitialCapital(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-32"
+            />
+          </div>
         </div>
+      </div>
 
-        {/* Portfolios */}
-        {portfolios.map((portfolio, pIndex) => {
-          const totalWeight = getPortfolioWeight(portfolio);
-          const isValid = isValidPortfolio(portfolio);
+      {/* Portfolio Assets Table */}
+      <div className="p-6">
+        <form onSubmit={handleSubmit}>
+          <table className="w-full">
+            <thead>
+              <tr>
+                {/* Asset Label Column Header */}
+                <th className="text-left pb-3 pr-4">
+                  <div className="flex items-center gap-2 font-semibold text-gray-900">
+                    Portfolio Assets
+                    <button
+                      type="button"
+                      onClick={clearAllAssets}
+                      title="Clear all assets"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </th>
 
-          return (
-            <div
-              key={pIndex}
-              className="p-4 rounded-lg border-2"
-              style={{ borderColor: PORTFOLIO_COLORS[pIndex] }}
-            >
-              {/* Portfolio Header */}
-              <div className="flex items-center gap-2 mb-3">
-                <div
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: PORTFOLIO_COLORS[pIndex] }}
-                />
-                <Input
-                  value={portfolio.name}
-                  onChange={(e) => updatePortfolioName(pIndex, e.target.value)}
-                  className="font-medium flex-1"
-                />
-                {portfolios.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removePortfolio(pIndex)}
-                  >
-                    Remove
-                  </Button>
-                )}
-              </div>
+                {/* Ticker Column Header - empty */}
+                <th className="pb-3 px-2"></th>
 
-              {/* Tickers - 由上往下排版 */}
-              <div className="space-y-3">
-                {portfolio.tickers.map((item, tIndex) => (
-                  <div key={tIndex} className="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Ticker (e.g. AAPL)"
-                        value={item.ticker}
-                        onChange={(e) =>
-                          updateTicker(pIndex, tIndex, "ticker", e.target.value)
-                        }
-                        className="flex-1"
-                      />
-                      <Button
+                {/* Portfolio Columns */}
+                {Array.from({ length: portfolioCount }).map((_, pIndex) => (
+                  <th key={pIndex} className="text-center pb-3 px-2">
+                    <div
+                      ref={(el) => { dropdownRefs.current[pIndex] = el; }}
+                      className="relative inline-flex items-center gap-1 font-semibold text-gray-900"
+                    >
+                      Portfolio #{pIndex + 1}
+                      <button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeTicker(pIndex, tIndex)}
-                        disabled={portfolio.tickers.length <= 1}
+                        onClick={() => setOpenDropdown(openDropdown === pIndex ? null : pIndex)}
+                        className="flex items-center gap-1 p-1 hover:bg-gray-100 rounded"
                       >
-                        X
-                      </Button>
+                        <SettingsIcon />
+                        <ChevronDownIcon />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {openDropdown === pIndex && (
+                        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-40">
+                          <button
+                            type="button"
+                            onClick={() => handlePortfolioAction(pIndex, "equal")}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                          >
+                            Equal Weight
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePortfolioAction(pIndex, "normalize")}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                          >
+                            Normalize to 100%
+                          </button>
+                          {Array.from({ length: portfolioCount })
+                            .map((_, i) => i)
+                            .filter((i) => i !== pIndex)
+                            .map((sourceIndex) => (
+                              <button
+                                key={sourceIndex}
+                                type="button"
+                                onClick={() => handlePortfolioAction(pIndex, `copy-${sourceIndex}`)}
+                                className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                              >
+                                Copy from #{sourceIndex + 1}
+                              </button>
+                            ))}
+                          <button
+                            type="button"
+                            onClick={() => handlePortfolioAction(pIndex, "clear")}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 text-red-600"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-600 w-16">Weight:</label>
-                      <div className="relative flex-1">
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="100"
-                          placeholder="%"
-                          value={item.weight}
-                          onChange={(e) =>
-                            updateTicker(pIndex, tIndex, "weight", e.target.value)
-                          }
-                          className="w-full pr-8"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-                          %
-                        </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {assets.slice(0, visibleAssets).map((asset, aIndex) => (
+                <tr key={aIndex} className="border-t border-gray-100">
+                  {/* Asset Label */}
+                  <td className="py-2 pr-4 text-gray-700 font-medium whitespace-nowrap">
+                    Asset {aIndex + 1}
+                    {aIndex === visibleAssets - 1 && visibleAssets < MAX_ASSETS && (
+                      <button
+                        type="button"
+                        onClick={showMoreAssets}
+                        className="ml-2 text-blue-600 hover:underline text-sm font-normal"
+                      >
+                        (More)
+                      </button>
+                    )}
+                  </td>
+
+                  {/* Ticker Input */}
+                  <td className="py-2 px-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Ticker symbol"
+                        value={asset.ticker}
+                        onChange={(e) => updateTicker(aIndex, e.target.value)}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <SearchIcon />
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  </td>
 
-              {/* Add Stock Button */}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addTicker(pIndex)}
-                disabled={portfolio.tickers.length >= 50}
-                className="w-full mt-3"
-              >
-                + Add Stock
-              </Button>
+                  {/* Weight Inputs for each Portfolio */}
+                  {Array.from({ length: portfolioCount }).map((_, pIndex) => (
+                    <td key={pIndex} className="py-2 px-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={asset.weights[pIndex] || ""}
+                          onChange={(e) =>
+                            updateWeight(aIndex, pIndex, Number(e.target.value) || 0)
+                          }
+                          className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right"
+                        />
+                        <span className="text-gray-500">%</span>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
 
-              {/* Weight Status & Auto Balance */}
-              <div className="mt-3 space-y-2">
-                <p
-                  className={`text-sm ${
-                    isValid ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  Total Weight: {totalWeight.toFixed(1)}%
-                  {!isValid && " (must equal 100%)"}
-                </p>
+              {/* Total Row */}
+              <tr className="border-t-2 border-gray-300">
+                <td className="py-3 pr-4 font-semibold text-gray-900">Total</td>
+                <td className="py-3 px-2"></td>
+                {Array.from({ length: portfolioCount }).map((_, pIndex) => {
+                  const total = getPortfolioTotal(pIndex);
+                  const isValid = Math.abs(total - 100) < 0.01;
+                  const hasEntries = assets.some((a) => a.weights[pIndex] > 0);
 
-                {/* Auto Balance Buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => balanceWeights(pIndex, "equal")}
-                    title="平均分配所有股票"
-                  >
-                    平均
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => balanceWeights(pIndex, "fill")}
-                    title="將剩餘比例平均分配給所有股票"
-                    disabled={totalWeight >= 100}
-                  >
-                    補齊
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => balanceWeights(pIndex, "proportional")}
-                    title="按現有比例放大至 100%"
-                    disabled={totalWeight === 0 || totalWeight >= 100}
-                  >
-                    等比放大
-                  </Button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                  return (
+                    <td key={pIndex} className="py-3 px-2">
+                      <div className="flex items-center gap-1">
+                        <div
+                          className={`w-20 px-3 py-2 rounded-lg text-right font-medium ${
+                            hasEntries
+                              ? isValid
+                                ? "bg-green-100 text-green-800"
+                                : "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          {total}
+                        </div>
+                        <span className="text-gray-500">%</span>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
 
-        {/* Add Portfolio Button */}
-        {portfolios.length < 3 && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addPortfolio}
-            className="w-full"
-          >
-            + Add Portfolio ({portfolios.length}/3)
-          </Button>
-        )}
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          className="w-full"
-          loading={loading}
-          disabled={!allValid || loading}
-        >
-          Run Backtest {portfolios.length > 1 ? `(${portfolios.length} Portfolios)` : ""}
-        </Button>
-      </form>
-    </Card>
+          {/* Action Buttons */}
+          <div className="flex justify-center gap-4 mt-6">
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              loading={loading}
+              disabled={!hasValidPortfolio() || loading}
+            >
+              Analyze Portfolios
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
