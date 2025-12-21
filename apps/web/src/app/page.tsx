@@ -26,7 +26,7 @@ interface BacktestFormData {
 }
 
 const PORTFOLIO_COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
-const BENCHMARK_COLOR = "#9ca3af"; // Gray for S&P 500
+const BENCHMARK_COLOR = "#9ca3af"; // Gray for Vanguard 500
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,7 @@ export default function Home() {
     }
   };
 
-  // 合併多組淨值曲線數據（包含 S&P 500 基準）
+  // 合併多組淨值曲線數據（包含 Vanguard 500 基準）
   const combinedEquityData = result && result.portfolios.length > 0
     ? (() => {
         // 建立 benchmark 日期對應表
@@ -79,10 +79,10 @@ export default function Home() {
           result.portfolios.forEach((portfolio) => {
             combined[portfolio.name] = portfolio.equity_curve[index]?.value ?? 0;
           });
-          // 用日期匹配 S&P 500 基準數據
+          // 用日期匹配 Vanguard 500 基準數據
           const benchmarkValue = benchmarkMap.get(point.date);
           if (benchmarkValue !== undefined) {
-            combined["S&P 500"] = benchmarkValue;
+            combined["Vanguard 500"] = benchmarkValue;
           }
           return combined;
         });
@@ -93,7 +93,7 @@ export default function Home() {
   const chartPortfolios = result && result.portfolios.length > 0
     ? [
         ...result.portfolios.map((p) => ({ name: p.name, color: portfolioColors[p.name] || "#3b82f6" })),
-        { name: "S&P 500", color: BENCHMARK_COLOR },
+        { name: "Vanguard 500", color: BENCHMARK_COLOR },
       ]
     : [];
 
@@ -138,7 +138,7 @@ export default function Home() {
             {result && result.portfolios.length > 0 ? (
               <>
                 {/* Combined Equity Curve Chart */}
-                <Card title="Portfolio Comparison vs S&P 500">
+                <Card title="Portfolio Comparison vs Vanguard 500">
                   <EquityCurveChart
                     data={combinedEquityData}
                     portfolios={chartPortfolios}

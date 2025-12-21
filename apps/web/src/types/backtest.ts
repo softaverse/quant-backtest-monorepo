@@ -39,6 +39,11 @@ export interface PortfolioStats {
   max_drawdown: number;
   annualized_volatility: number;
   total_return: number;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  best_year: number;
+  worst_year: number;
+  benchmark_correlation: number;
 }
 
 export interface DateRange {
@@ -53,6 +58,11 @@ export interface BenchmarkStats {
   cagr: number;
   max_drawdown: number;
   annualized_volatility: number;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  best_year: number;
+  worst_year: number;
+  benchmark_correlation: number;
 }
 
 export interface BacktestResponse {
