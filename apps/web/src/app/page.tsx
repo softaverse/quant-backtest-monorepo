@@ -104,9 +104,9 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">QuantiPy</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Backtest Portfolio</h1>
               <p className="mt-1 text-gray-500">
-                High-Performance US Stock Portfolio Backtest System
+                Backtest U.S. stock portfolios and analyze long-term performance with historical data.
               </p>
             </div>
             <Link
@@ -192,7 +192,7 @@ export default function Home() {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            QuantiPy - Built with Next.js & FastAPI
+            Backtest Portfolio
           </p>
         </div>
       </footer>
