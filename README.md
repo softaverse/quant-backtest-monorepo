@@ -54,28 +54,89 @@
 ```
 
 # ⚙️ 快速開始 (Quick Start)
-1. 複製專案與環境安裝
-確保您的環境已安裝 Node.js (v18+)、pnpm 與 Python (3.10+)。
+
+## 1. 環境需求
+
+確保您的環境已安裝：
+- Node.js (v18+)
+- pnpm (v9+)
+- Python (3.10+)
+
+## 2. 一鍵安裝（推薦）
+
+```bash
+# 安裝前端依賴 + 建立 Python 虛擬環境 + 安裝後端依賴
+pnpm setup:all
+```
+
+## 3. 手動安裝
 
 ```bash
 # 安裝前端與全局依賴
 pnpm install
 
-# 安裝後端 Python 依賴
+# 建立 Python 虛擬環境並安裝後端依賴
 cd services/fastapi-api
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-2. 啟動開發伺服器
+## 4. 環境變數設定
+
+複製 `.env.example` 並填入您的設定：
+
+```bash
+cp .env.example .env.local
+```
+
+需要設定的變數：
+- `GOOGLE_CLIENT_ID` - Google OAuth Client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth Client Secret
+- `JWT_SECRET_KEY` - JWT 加密金鑰（可用 `openssl rand -hex 32` 產生）
+
+## 5. 啟動開發伺服器
+
 在專案根目錄執行一鍵啟動指令：
 
 ```bash
 pnpm dev:all
 ```
 
-前端介面：http://localhost:3000
+- 前端介面：http://localhost:3000
+- API 交互文件：http://localhost:8000/docs
 
-API 交互文件：http://localhost:8000/docs
+---
+
+## 🔐 Google OAuth 認證設定
+
+本專案支援 Google 帳號登入。設定步驟：
+
+1. 前往 [Google Cloud Console](https://console.cloud.google.com/)
+2. 建立專案或選擇現有專案
+3. 啟用 Google+ API
+4. 建立 OAuth 2.0 憑證（Web Application 類型）
+5. 設定授權重新導向 URI：`http://localhost:8000/api/v1/auth/google/callback`
+6. 將 Client ID 和 Client Secret 填入 `.env.local`
+
+### 認證流程
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Next.js App   │────▶│   FastAPI API   │────▶│   SQLite DB     │
+│   (Frontend)    │◀────│   (Backend)     │◀────│   (Storage)     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │
+        │                       ▼
+        │               ┌─────────────────┐
+        └──────────────▶│  Google OAuth   │
+                        └─────────────────┘
+```
+
+### 受保護路由
+
+- `/options` - Options Backtest（需登入）
+- `/` - 首頁（公開）
 
 ---
 

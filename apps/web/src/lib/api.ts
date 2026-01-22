@@ -20,6 +20,7 @@ export async function runBacktest(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(request),
   });
 
@@ -39,6 +40,7 @@ export async function runBatchBacktest(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(request),
   });
 
@@ -58,6 +60,7 @@ export async function validateTickers(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(tickers),
   });
 

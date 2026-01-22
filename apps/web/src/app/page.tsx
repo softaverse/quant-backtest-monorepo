@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { BacktestForm, StatsComparisonTable, IndividualStatsTable } from "@/components/backtest";
 import { EquityCurveChart } from "@/components/charts";
 import { Card } from "@/components/ui";
+import { LoginButton, UserMenu } from "@/components/auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { runBatchBacktest } from "@/lib/api";
 import type { BatchBacktestResponse } from "@/types";
 
@@ -29,10 +32,22 @@ const PORTFOLIO_COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
 const BENCHMARK_COLOR = "#9ca3af"; // Gray for Vanguard 500
 
 export default function Home() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BatchBacktestResponse | null>(null);
   const [portfolioColors, setPortfolioColors] = useState<Record<string, string>>({});
+  const [showLoginRequired, setShowLoginRequired] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("login_required") === "true") {
+      setShowLoginRequired(true);
+      // Clean up URL
+      router.replace("/", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const handleSubmit = async (data: BacktestFormData) => {
     setLoading(true);
@@ -109,15 +124,40 @@ export default function Home() {
                 Backtest U.S. stock portfolios and analyze long-term performance with historical data.
               </p>
             </div>
-            <Link
-              href="/options"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Options Backtest &rarr;
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/options"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Options Backtest &rarr;
+              </Link>
+              {!authLoading && (isAuthenticated ? <UserMenu /> : <LoginButton />)}
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Login Required Notification */}
+      {showLoginRequired && !isAuthenticated && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-amber-800">Please sign in to access Options Backtest.</p>
+            </div>
+            <button
+              onClick={() => setShowLoginRequired(false)}
+              className="text-amber-600 hover:text-amber-800"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

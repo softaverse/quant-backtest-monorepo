@@ -31,6 +31,7 @@ export async function runOptionsBacktest(
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(request),
   });
 
@@ -46,7 +47,9 @@ export async function runOptionsBacktest(
  * Get all available strategies
  */
 export async function getStrategies(): Promise<StrategyInfo[]> {
-  const response = await fetch(getApiUrl("/options/strategies"));
+  const response = await fetch(getApiUrl("/options/strategies"), {
+    credentials: "include",
+  });
 
   if (!response.ok) {
     throw new Error("Failed to fetch strategies");
@@ -66,7 +69,9 @@ export async function getOptionChain(
     ? getApiUrl(`/options/chain/${ticker}?expiration=${expiration}`)
     : getApiUrl(`/options/chain/${ticker}`);
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    credentials: "include",
+  });
 
   if (!response.ok) {
     const error = await response.json();
@@ -80,7 +85,9 @@ export async function getOptionChain(
  * Get available expiration dates for a ticker
  */
 export async function getExpirations(ticker: string): Promise<ExpirationsData> {
-  const response = await fetch(getApiUrl(`/options/expirations/${ticker}`));
+  const response = await fetch(getApiUrl(`/options/expirations/${ticker}`), {
+    credentials: "include",
+  });
 
   if (!response.ok) {
     const error = await response.json();
@@ -106,6 +113,7 @@ export async function validateOptionsTicker(
 }> {
   const response = await fetch(getApiUrl(`/options/validate-ticker?ticker=${ticker}`), {
     method: "POST",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -127,7 +135,9 @@ export async function getRiskFreeRate(): Promise<{
   risk_free_rate: number;
   percentage: number;
 }> {
-  const response = await fetch(getApiUrl("/options/risk-free-rate"));
+  const response = await fetch(getApiUrl("/options/risk-free-rate"), {
+    credentials: "include",
+  });
 
   if (!response.ok) {
     throw new Error("Failed to fetch risk-free rate");

@@ -5,10 +5,12 @@
   "description": "Backtest U.S. stock portfolios and analyze long-term performance with historical data.",
   "scripts": {
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "cd services/fastapi-api && python -m uvicorn main:app --reload --port 8000",
+    "dev:api": "cd services/fastapi-api && source venv/bin/activate && python -m uvicorn main:app --reload --port 8000",
     "dev:all": "concurrently \"pnpm dev:web\" \"pnpm dev:api\"",
     "build": "pnpm --filter web build",
-    "lint": "pnpm --filter web lint"
+    "lint": "pnpm --filter web lint",
+    "setup:api": "cd services/fastapi-api && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "setup:all": "pnpm install && pnpm setup:api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
