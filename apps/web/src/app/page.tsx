@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { BacktestForm, StatsComparisonTable, IndividualStatsTable } from "@/components/backtest";
+import { BacktestForm, StatsComparisonTable, IndividualStatsTable, SavePortfolioModal } from "@/components/backtest";
 import { EquityCurveChart } from "@/components/charts";
-import { Card } from "@/components/ui";
+import { Card, Button } from "@/components/ui";
 import { LoginButton, UserMenu } from "@/components/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import { runBatchBacktest } from "@/lib/api";
-import type { BatchBacktestResponse } from "@/types";
+import { runAndSaveBacktest } from "@/lib/history-api";
+import type { BatchBacktestResponse, SavedPortfolio } from "@/types";
 
 interface TickerWeight {
   ticker: string;
@@ -40,6 +41,11 @@ export default function Home() {
   const [result, setResult] = useState<BatchBacktestResponse | null>(null);
   const [portfolioColors, setPortfolioColors] = useState<Record<string, string>>({});
   const [showLoginRequired, setShowLoginRequired] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveToHistory, setSaveToHistory] = useState(true);
+  const [lastBacktestData, setLastBacktestData] = useState<{ tickers: string[]; weights: number[] } | null>(null);
+  const [loadedPortfolio, setLoadedPortfolio] = useState<SavedPortfolio | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
   useEffect(() => {
     if (searchParams.get("login_required") === "true") {
@@ -49,31 +55,99 @@ export default function Home() {
     }
   }, [searchParams, router]);
 
+  // Load portfolio from sessionStorage (from dashboard)
+  useEffect(() => {
+    const loadPortfolioData = sessionStorage.getItem("loadPortfolio");
+    const editPortfolioData = sessionStorage.getItem("editPortfolio");
+
+    if (loadPortfolioData) {
+      try {
+        const portfolio = JSON.parse(loadPortfolioData) as SavedPortfolio;
+        setLoadedPortfolio(portfolio);
+        setFormKey((prev) => prev + 1);
+      } catch (e) {
+        console.error("Failed to parse portfolio data", e);
+      }
+      sessionStorage.removeItem("loadPortfolio");
+    } else if (editPortfolioData) {
+      try {
+        const portfolio = JSON.parse(editPortfolioData) as SavedPortfolio;
+        setLoadedPortfolio(portfolio);
+        setFormKey((prev) => prev + 1);
+      } catch (e) {
+        console.error("Failed to parse portfolio data", e);
+      }
+      sessionStorage.removeItem("editPortfolio");
+    }
+  }, []);
+
   const handleSubmit = async (data: BacktestFormData) => {
     setLoading(true);
     setError(null);
 
     try {
-      // 單次 API 呼叫處理所有組合
-      const response = await runBatchBacktest({
-        portfolios: data.portfolios.map((portfolio) => ({
-          name: portfolio.name,
+      // Store the last backtest data for saving
+      if (data.portfolios.length === 1) {
+        const portfolio = data.portfolios[0];
+        setLastBacktestData({
           tickers: portfolio.tickers.map((t) => t.ticker),
           weights: portfolio.tickers.map((t) => t.weight),
-        })),
-        start_date: data.startDate,
-        end_date: data.endDate,
-        initial_capital: data.initialCapital,
-      });
+        });
+      }
 
-      // 設定每個組合的顏色
-      const colors: Record<string, string> = {};
-      data.portfolios.forEach((portfolio, index) => {
-        colors[portfolio.name] = PORTFOLIO_COLORS[index];
-      });
-      setPortfolioColors(colors);
+      // If authenticated and saveToHistory is enabled, use run-and-save for single portfolio
+      if (isAuthenticated && saveToHistory && data.portfolios.length === 1) {
+        const portfolio = data.portfolios[0];
+        const response = await runAndSaveBacktest({
+          tickers: portfolio.tickers.map((t) => t.ticker),
+          weights: portfolio.tickers.map((t) => t.weight),
+          start_date: data.startDate,
+          end_date: data.endDate,
+          initial_capital: data.initialCapital,
+          portfolio_name: portfolio.name,
+          portfolio_id: loadedPortfolio?.id,
+          save_to_history: true,
+        });
 
-      setResult(response);
+        // Convert to batch response format
+        const batchResponse: BatchBacktestResponse = {
+          portfolios: [
+            {
+              name: portfolio.name,
+              stats: response.stats,
+              equity_curve: response.equity_curve,
+              individual_stats: response.individual_stats,
+            },
+          ],
+          date_range: response.date_range,
+          benchmark_curve: response.benchmark_curve,
+          benchmark_stats: response.benchmark_stats,
+        };
+
+        const colors: Record<string, string> = {};
+        colors[portfolio.name] = PORTFOLIO_COLORS[0];
+        setPortfolioColors(colors);
+        setResult(batchResponse);
+      } else {
+        // Use batch backtest for multiple portfolios or when not saving
+        const response = await runBatchBacktest({
+          portfolios: data.portfolios.map((portfolio) => ({
+            name: portfolio.name,
+            tickers: portfolio.tickers.map((t) => t.ticker),
+            weights: portfolio.tickers.map((t) => t.weight),
+          })),
+          start_date: data.startDate,
+          end_date: data.endDate,
+          initial_capital: data.initialCapital,
+        });
+
+        const colors: Record<string, string> = {};
+        data.portfolios.forEach((portfolio, index) => {
+          colors[portfolio.name] = PORTFOLIO_COLORS[index];
+        });
+        setPortfolioColors(colors);
+        setResult(response);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
@@ -125,6 +199,14 @@ export default function Home() {
               </p>
             </div>
             <div className="flex items-center gap-4">
+              {isAuthenticated && (
+                <Link
+                  href="/dashboard"
+                  className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                >
+                  Dashboard
+                </Link>
+              )}
               <Link
                 href="/options"
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
@@ -164,7 +246,27 @@ export default function Home() {
         <div className="space-y-8">
           {/* Form Section - Full Width */}
           <div className="w-full">
-            <BacktestForm onSubmit={handleSubmit} loading={loading} />
+            {/* Save to History Checkbox */}
+            {isAuthenticated && (
+              <div className="mb-4 flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={saveToHistory}
+                    onChange={(e) => setSaveToHistory(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  Save results to history
+                </label>
+                {loadedPortfolio && (
+                  <span className="text-sm text-gray-500">
+                    Loaded: <strong>{loadedPortfolio.name}</strong>
+                  </span>
+                )}
+              </div>
+            )}
+
+            <BacktestForm key={formKey} onSubmit={handleSubmit} loading={loading} initialPortfolio={loadedPortfolio} />
 
             {error && (
               <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -177,6 +279,21 @@ export default function Home() {
           <div className="w-full space-y-6">
             {result && result.portfolios.length > 0 ? (
               <>
+                {/* Save Portfolio Button */}
+                {isAuthenticated && lastBacktestData && result.portfolios.length === 1 && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSaveModal(true)}
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                      Save Portfolio
+                    </Button>
+                  </div>
+                )}
+
                 {/* Combined Equity Curve Chart */}
                 <Card title="Portfolio Comparison vs Vanguard 500">
                   <EquityCurveChart
@@ -236,6 +353,21 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* Save Portfolio Modal */}
+      {lastBacktestData && (
+        <SavePortfolioModal
+          isOpen={showSaveModal}
+          onClose={() => setShowSaveModal(false)}
+          tickers={lastBacktestData.tickers}
+          weights={lastBacktestData.weights}
+          existingPortfolio={loadedPortfolio}
+          onSaved={(portfolio) => {
+            setLoadedPortfolio(portfolio);
+            alert(`Portfolio "${portfolio.name}" saved successfully!`);
+          }}
+        />
+      )}
     </div>
   );
 }

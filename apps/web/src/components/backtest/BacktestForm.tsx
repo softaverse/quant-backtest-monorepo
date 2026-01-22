@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button, TickerCombobox } from "@/components/ui";
 import { useTickerValidation } from "@/hooks/useTickerValidation";
 import { isInStaticList } from "@/data/tickers";
+import type { SavedPortfolio } from "@/types";
 
 interface Asset {
   ticker: string;
@@ -26,6 +27,7 @@ interface BacktestFormProps {
   onSubmit: (data: BacktestFormData) => void;
   onCancel?: () => void;
   loading?: boolean;
+  initialPortfolio?: SavedPortfolio | null;
 }
 
 const DEFAULT_VISIBLE_ASSETS = 10;
@@ -98,9 +100,19 @@ const ChevronDownIcon = () => (
 
 const PORTFOLIO_COUNT = 3;
 
-export function BacktestForm({ onSubmit, onCancel, loading = false }: BacktestFormProps) {
-  const portfolioCount = PORTFOLIO_COUNT;
-  const [assets, setAssets] = useState<Asset[]>([
+const getInitialAssets = (initialPortfolio?: SavedPortfolio | null): Asset[] => {
+  if (initialPortfolio) {
+    const assets: Asset[] = initialPortfolio.tickers.map((ticker, index) => ({
+      ticker,
+      weights: [Math.round(initialPortfolio.weights[index] * 100), 0, 0],
+    }));
+    // Pad with empty assets to reach minimum
+    while (assets.length < DEFAULT_VISIBLE_ASSETS) {
+      assets.push({ ticker: "", weights: [0, 0, 0] });
+    }
+    return assets;
+  }
+  return [
     { ticker: "VTSMX", weights: [40, 0, 0] },
     { ticker: "VGTSX", weights: [20, 0, 0] },
     { ticker: "VGSIX", weights: [10, 0, 0] },
@@ -111,7 +123,12 @@ export function BacktestForm({ onSubmit, onCancel, loading = false }: BacktestFo
     { ticker: "", weights: [0, 0, 0] },
     { ticker: "", weights: [0, 0, 0] },
     { ticker: "", weights: [0, 0, 0] },
-  ]);
+  ];
+};
+
+export function BacktestForm({ onSubmit, onCancel, loading = false, initialPortfolio }: BacktestFormProps) {
+  const portfolioCount = PORTFOLIO_COUNT;
+  const [assets, setAssets] = useState<Asset[]>(() => getInitialAssets(initialPortfolio));
   const [visibleAssets, setVisibleAssets] = useState(DEFAULT_VISIBLE_ASSETS);
   const [startYear, setStartYear] = useState(2020);
   const [initialCapital, setInitialCapital] = useState(100000);
@@ -120,6 +137,13 @@ export function BacktestForm({ onSubmit, onCancel, loading = false }: BacktestFo
 
   // Ticker validation hook
   const { validateTicker, getStatus } = useTickerValidation();
+
+  // Update form when initialPortfolio changes
+  useEffect(() => {
+    if (initialPortfolio) {
+      setAssets(getInitialAssets(initialPortfolio));
+    }
+  }, [initialPortfolio]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

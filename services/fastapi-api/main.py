@@ -8,6 +8,8 @@ from config import get_settings
 from database import init_db
 from routers import backtest, options
 from routers.auth import router as auth_router
+from routers.portfolios import router as portfolios_router
+from routers.history import router as history_router
 
 settings = get_settings()
 
@@ -42,6 +44,8 @@ app.add_middleware(
 app.include_router(backtest.router, prefix="/api/v1", tags=["backtest"])
 app.include_router(options.router, prefix="/api/v1", tags=["options"])
 app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
+app.include_router(portfolios_router, prefix="/api/v1", tags=["portfolios"])
+app.include_router(history_router, prefix="/api/v1", tags=["backtest-history"])
 
 
 @app.get("/")
